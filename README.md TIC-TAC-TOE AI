@@ -1,73 +1,123 @@
 # Codesoft
-board = [' '] * 9
+board = [' ' for i in range(9)]
 
-def show():
+
+def print_board():
     print()
-    print(board[0], '|', board[1], '|', board[2])
-    print('---------')
-    print(board[3], '|', board[4], '|', board[5])
-    print('---------')
-    print(board[6], '|', board[7], '|', board[8])
+    print(board[0] + ' | ' + board[1] + ' | ' + board[2])
+    print("--+---+--")
+    print(board[3] + ' | ' + board[4] + ' | ' + board[5])
+    print("--+---+--")
+    print(board[6] + ' | ' + board[7] + ' | ' + board[8])
     print()
 
-def win():
-    if board[0] == board[1] == board[2] != ' ':
+
+def check_win(player):
+    if board[0] == board[1] == board[2] == player:
         return True
-    if board[3] == board[4] == board[5] != ' ':
+    if board[3] == board[4] == board[5] == player:
         return True
-    if board[6] == board[7] == board[8] != ' ':
+    if board[6] == board[7] == board[8] == player:
         return True
-    if board[0] == board[3] == board[6] != ' ':
+    if board[0] == board[3] == board[6] == player:
         return True
-    if board[1] == board[4] == board[7] != ' ':
+    if board[1] == board[4] == board[7] == player:
         return True
-    if board[2] == board[5] == board[8] != ' ':
+    if board[2] == board[5] == board[8] == player:
         return True
-    if board[0] == board[4] == board[8] != ' ':
+    if board[0] == board[4] == board[8] == player:
         return True
-    if board[2] == board[4] == board[6] != ' ':
+    if board[2] == board[4] == board[6] == player:
         return True
     return False
 
-def draw():
-    for i in board:
-        if i == ' ':
-            return False
-    return True
 
-def user():
-    pos = int(input("Enter position (1-9): "))
-    if board[pos-1] == ' ':
-        board[pos-1] = 'X'
-    else:
-        print("Wrong input")
-        user()
+def is_full():
+    return ' ' not in board
 
-def comp():
+
+def player_move():
+    move = -1
+    while move not in range(9) or board[move] != ' ':
+        try:
+            move = int(input("Enter your move (1-9): ")) - 1
+            if move not in range(9):
+                print("Choose a number from 1 to 9!")
+            elif board[move] != ' ':
+                print("Spot taken, pick another!")
+        except ValueError:
+            print("Enter a valid number!")
+    board[move] = 'X'
+
+
+def ai_move():
+    best_score = -10
+    best_move = None
     for i in range(9):
         if board[i] == ' ':
             board[i] = 'O'
+            score = minimax(False)
+            board[i] = ' '
+            if score > best_score:
+                best_score = score
+                best_move = i
+    board[best_move] = 'O'
+
+
+def minimax(is_ai_turn):
+    
+    if check_win('O'):
+        return 1
+    if check_win('X'):
+        return -1
+    if is_full():
+        return 0
+
+    if is_ai_turn:
+        
+        best_score = -10
+        for i in range(9):
+            if board[i] == ' ':
+                board[i] = 'O'
+                score = minimax(False)
+                board[i] = ' '
+                if score > best_score:
+                    best_score = score
+        return best_score
+    else:
+        best_score = 10
+        for i in range(9):
+            if board[i] == ' ':
+                board[i] = 'X'
+                score = minimax(True)
+                board[i] = ' '
+                if score < best_score:
+                    best_score = score
+        return best_score
+
+
+def main():
+    print("Welcome to Tic-Tac-Toe!")
+    print_board()
+    while True:
+        player_move()
+        print_board()
+        if check_win('X'):
+            print("You win! Congrats!")
+            break
+        if is_full():
+            print("It's a tie!")
             break
 
-print("TIC TAC TOE GAME")
-print("Player = X Computer = O")
-while True:
-    show()
-    user()
-    if win():
-        show()
-        print("Player wins")
-        break
-    if draw():
-        show()
-        print("Match draw")
-        break
-    comp()
-    if win():
-        show()
-        print("Computer wins")
-        break
-    if draw():
-        show()
-        print("Match draw")
-        break
+        print("AI is thinking...")
+        ai_move()
+        print_board()
+        if check_win('O'):
+            print("AI wins! Better luck next time!")
+            break
+        if is_full():
+            print("It's a tie!")
+            break
+
+if __name__ == "__main__":
+    main()
