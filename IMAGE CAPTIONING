@@ -1,0 +1,123 @@
+import os
+import numpy as np
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Embedding, LSTM, Dense, Input, Add
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.preprocessing.text import Tokenizer
+
+print("Step First: Loading ResNet50 model for feature extraction...")
+resnet = ResNet50(weights='imagenet')
+resnet = Model(inputs=resnet.inputs, outputs=resnet.layers[-2].output)
+print("ResNet50 loaded successfully.\n")
+
+def extract_features(image_path):
+    print(f"Extracting features for image: {image_path}")
+    img = load_img(image_path, target_size=(224, 224))
+    img = img_to_array(img)
+    img = np.expand_dims(img, axis=0)
+    img = preprocess_input(img)
+    features = resnet.predict(img, verbose=0)
+    print(f"Feature shape: {features.shape}\n")
+    return features
+
+image_folder = "images"
+image_files = [os.path.join(image_folder, f) for f in os.listdir(image_folder) if f.endswith(".jpg")]
+print(f"Found {len(image_files)} images in folder '{image_folder}'\n")
+
+image_features = {}
+for img_path in image_files:
+    key = os.path.basename(img_path)
+    image_features[key] = extract_features(img_path)
+print(f"Extracted features for {len(image_features)} images.\n")
+
+captions = {
+    "image1.jpg": ["a cat sitting on a mat", "a small cat on the floor"],
+    "image2.jpg": ["a dog playing with a ball", "a brown dog running outside"]
+}
+
+all_captions = []
+for cap_list in captions.values():
+    for cap in cap_list:
+        all_captions.append(cap)
+
+tokenizer = Tokenizer()
+tokenizer.fit_on_texts(all_captions)
+vocab_size = len(tokenizer.word_index) + 1
+max_length = max(len(c.split()) for c in all_captions)
+print(f"Vocabulary size: {vocab_size}")
+print(f"Maximum caption length: {max_length}\n")
+
+image_inputs = []
+caption_inputs = []
+next_word_targets = []
+
+for img_name, cap_list in captions.items():
+    feature = image_features[img_name]
+    for cap in cap_list:
+        seq = tokenizer.texts_to_sequences([cap])[0]
+        for i in range(1, len(seq)):
+            in_seq = seq[:i]
+            out_seq = seq[i]
+            padded_in_seq = [0]*(max_length - len(in_seq)) + in_seq
+            out_seq_cat = to_categorical([out_seq], num_classes=vocab_size)[0]
+            image_inputs.append(feature[0])
+            caption_inputs.append(padded_in_seq)
+            next_word_targets.append(out_seq_cat)
+            print(f"Created the sequence {i}/{len(seq)-1} for caption: '{cap}'")
+
+image_inputs = np.array(image_inputs)
+caption_inputs = np.array(caption_inputs)
+next_word_targets = np.array(next_word_targets)
+print("\nTraining data shapes:")
+print("Image inputs:", image_inputs.shape)
+print("Caption inputs:", caption_inputs.shape)
+print("Next word targets:", next_word_targets.shape, "\n")
+
+image_input_layer = Input(shape=(2048,))
+img_dense = Dense(256, activation='relu')(image_input_layer)
+
+seq_input_layer = Input(shape=(max_length,))
+seq_emb = Embedding(vocab_size, 256, mask_zero=True)(seq_input_layer)
+seq_lstm = LSTM(256)(seq_emb)
+
+merged_features = Add()([img_dense, seq_lstm])
+merged_features = Dense(256, activation='relu')(merged_features)
+output_layer = Dense(vocab_size, activation='softmax')(merged_features)
+
+model = Model(inputs=[image_input_layer, seq_input_layer], outputs=output_layer)
+model.compile(loss='categorical_crossentropy', optimizer='adam')
+print(model.summary())
+
+print("Starting the training...\n")
+model.fit([image_inputs, caption_inputs], next_word_targets, epochs=5, batch_size=2)
+print("Training is finished.\n")
+
+def generate_caption(image_path):
+    feature = extract_features(image_path)
+    in_text = []
+    print(f"Generating a caption for image: {image_path}")
+
+    for i in range(max_length):
+        seq = tokenizer.texts_to_sequences([' '.join(in_text)])[0]
+        seq = [0]*(max_length - len(seq)) + seq
+        seq = np.array([seq])
+        yhat_probs = model.predict([feature, seq], verbose=0)
+        max_prob = 0
+        predicted_index = 0
+        for idx, prob in enumerate(yhat_probs[0]):
+            if prob > max_prob:
+                max_prob = prob
+                predicted_index = idx
+        word = tokenizer.index_word.get(predicted_index)
+        print(f"Step {i+1}: predicted word='{word}' (prob={max_prob:.4f})")
+        if word is None:
+            break
+        in_text.append(word)
+    return ' '.join(in_text)
+
+test_image = image_files[0]
+caption = generate_caption(test_image)
+print("\nGenerated caption for", test_image, ":", caption)
