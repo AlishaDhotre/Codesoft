@@ -1,0 +1,38 @@
+books = [
+    {"name": "The White Tiger", "genre": ["Fiction", "Drama"]},
+    {"name": "Train to Pakistan", "genre": ["Historical", "Drama"]},
+    {"name": "God of Small Things", "genre": ["Fiction", "Romance"]},
+    {"name": "Malgudi Days", "genre": ["Fiction", "Comedy"]},
+    {"name": "Wings of Fire", "genre": ["Biography", "Inspirational"]},
+    {"name": "Ghachar Ghochar", "genre": ["Psychological", "Drama"]},
+    {"name": "Five Point Someone", "genre": ["Comedy", "Drama"]},
+]
+
+
+def recommend_book(user_book):
+    user_book = user_book.lower()
+    liked_genres = []
+
+    for book in books:
+        if book["name"].lower() == user_book:
+            liked_genres = book["genre"]
+            break
+
+    if not liked_genres:
+        print("Book not found in database.")
+        return
+
+    print("\nRecommended Books:")
+    for book in books:
+        if book["name"].lower() != user_book:
+            common_genres = set(liked_genres).intersection(book["genre"])
+            if common_genres:
+                print("-", book["name"])
+
+
+print("Available Books:")
+for book in books:
+    print("-", book["name"])
+
+user_choice = input("\nEnter a book you like: ")
+recommend_book(user_choice)
